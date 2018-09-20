@@ -1,65 +1,9 @@
-import { list, create, watch, currentUser, OpenShiftWatchEvents } from './openshiftServices';
+import { list, create, remove, watch, currentUser, OpenShiftWatchEvents } from './openshiftServices';
 import { walkthroughTypes } from '../redux/constants';
 import { FULFILLED_ACTION } from '../redux/helpers';
 import { buildServiceInstanceResourceObj, DEFAULT_SERVICES } from './serviceInstanceServices';
 
 const WALKTHROUGH_SERVICES = ['fuse', 'che', 'launcher', 'enmasse-standard', 'amq-broker-71-persistence'];
-
-class DefaultOpenshiftResourceCreator {
-  canHandle() {
-    return true;
-  }
-
-  create(resourceDef, resource) {
-    return create(resourceDef, resource);
-  }
-}
-
-class AMQResourceCreator {
-  canHandle(resource) {
-    return resource.spec.clusterServiceClassExternalName === DEFAULT_SERVICES.AMQ;
-  }
-
-  create(resourceDef, resource) {
-    return currentUser().then(currentUser => {
-      const userNamespace = buildValidProjectNamespaceName(currentUser.username);
-      const statefulSetDef = {
-        name: 'statefulsets',
-        group: 'apps',
-        version: 'v1beta1',
-        namespace: userNamespace
-      }
-      const statefulSetObj = {
-        metadata: {
-          name: 'broker-amq'
-        }
-      }
-      const secretDef = {
-        name: 'secrets',
-        namespace: userNamespace,
-        version: 'v1'
-      };
-      return create(resourceDef, resource)
-        .then(() => {
-          findOpenshiftResource(statefulSetDef, statefulSetObj)
-            .then(statefulSet => {
-              console.log('statefulset', statefulSet);
-            });
-
-          create(secretDef, {
-            kind: 'Secret',
-            metadata: {
-              name: 'amq-credentials'
-            },
-            stringData: {
-              username: 'super',
-              password: 'duper'
-            }
-          });
-        });
-    });
-  }
-}
 
 const mockUserWalkthrough = (dispatch, mockData) => {
   if (!mockData || !mockData.serviceInstances) {
@@ -100,6 +44,12 @@ const manageUserWalkthrough = dispatch => {
       version: 'v1beta1',
       group: 'servicecatalog.k8s.io'
     };
+    const statefulSetDef = {
+      name: 'statefulsets',
+      group: 'apps',
+      version: 'v1beta1',
+      namespace: userNamespace
+    }
 
     findOpenshiftResource(namespaceResourceDef, namespaceObj)
       .then(foundResource => {
@@ -126,9 +76,48 @@ const manageUserWalkthrough = dispatch => {
         watch(serviceInstanceDef).then(watchListener =>
           watchListener.onEvent(handleServiceInstanceWatchEvents.bind(null, dispatch))
         );
+        watch(statefulSetDef).then(watchListener => watchListener.onEvent(handleAMQStatefulSet.bind(null, userNamespace)));
       });
   });
 };
+
+const handleAMQStatefulSet = (namespace, event) => {
+  if (event.type === OpenShiftWatchEvents.OPENED || event.type === OpenShiftWatchEvents.CLOSED) {
+    return;
+  }
+  const sSet = event.payload;
+  if (!sSet.spec || !sSet.spec.template || !sSet.spec.template.spec || !sSet.spec.template.spec.containers || !sSet.spec.template.spec.containers[0]) {
+    return;
+  }
+  const specContainer = sSet.spec.template.spec.containers[0];
+  if (!specContainer.env) {
+    return;
+  }
+
+  const usernameEnv = specContainer.env.find(e => e.name === 'AMQ_USER');
+  const passwordEnv = specContainer.env.find(e => e.name === 'AMQ_PASSWORD');
+  if (!usernameEnv.value || !passwordEnv.value) {
+    return;
+  }
+
+  const secretDef = {
+    name: 'secrets',
+    version: 'v1',
+    namespace: namespace
+  }
+  const secretRes = {
+    metadata: {
+      name: 'amq-broker-credentials'
+    },
+    stringData: {
+      username: usernameEnv.value,
+      password: passwordEnv.value
+    }
+  }
+  replaceOpenShiftResource(secretDef, secretRes, secret => {
+    return secret.data.username !== window.btoa(usernameEnv.value) || secret.data.password !== window.btoa(passwordEnv.value);
+  });
+}
 
 const handleServiceInstanceWatchEvents = (dispatch, event) => {
   if (event.type === OpenShiftWatchEvents.OPENED || event.type === OpenShiftWatchEvents.CLOSED) {
@@ -159,19 +148,22 @@ const findOpenshiftResource = (openshiftResourceDef, resToFind, compareFn = (res
       return resourceObjs.find(resObj => compareFn(resObj));
     });
 
-const DEFAULT_RESOURCE_CREATORS = [new AMQResourceCreator(), new DefaultOpenshiftResourceCreator()];
-
-const findOrCreateOpenshiftResource = (openshiftResourceDef, resToFind, compareFn, resourceCreators = DEFAULT_RESOURCE_CREATORS) =>
+const findOrCreateOpenshiftResource = (openshiftResourceDef, resToFind, compareFn) =>
   findOpenshiftResource(openshiftResourceDef, resToFind, compareFn).then(foundResource => {
     if (!foundResource) {
-      const resourceCreator = resourceCreators.find(rc => rc.canHandle(resToFind));
-      if (!resourceCreator) {
-        return Promise.reject(new Error(`Could not find resource creator for ${resToFind.metadata.name}`));
-      }
-      return resourceCreator.create(openshiftResourceDef, resToFind);
+      return create(openshiftResourceDef, resToFind);
     }
     return Promise.resolve(foundResource);
   });
+
+const replaceOpenShiftResource = (resourceDef, resourceRes, replaceIfFn = (resObj => resObj.metadata.name === resourceRes.metadata.name)) =>
+  findOrCreateOpenshiftResource(resourceDef, resourceRes)
+    .then(resource => {
+      if (replaceIfFn(resource)) {
+        return remove(resourceDef, resourceRes).then(() => create(resourceDef, resourceRes));
+      }
+      return Promise.resolve(resource);
+    });
 
 const buildValidProjectNamespaceName = username => `${cleanUsername(username)}-walkthrough-projects`;
 

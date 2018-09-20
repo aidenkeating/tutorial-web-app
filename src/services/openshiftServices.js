@@ -209,6 +209,28 @@ const create = (res, obj) =>
     }).then(response => response.data);
   });
 
+const remove = (res, obj) =>
+  getUser().then(user => {
+    const requestUrl = _buildRequestUrl(res);
+
+    if (!obj.apiVersion) {
+      obj.apiVersion = res.group ? `${res.group}/${res.version}` : res.version;
+    }
+
+    return axios({
+      url: `${requestUrl}/${obj.metadata.name}`,
+      method: 'DELETE',
+      data: {
+        apiVersion: obj.apiVersion,
+        kind: 'DeleteOptions',
+        propogationPolicy: 'Foreground'
+      },
+      headers: {
+        authorization: `Bearer ${user.access_token}`
+      }
+    }).then(response => response.data);
+  });
+
 const watch = res =>
   getUser().then(user => {
     const walkthroughsUrl = _buildWatchUrl(res);
@@ -231,4 +253,4 @@ const _buildRequestUrl = res => `${_buildOpenShiftUrl(window.OPENSHIFT_CONFIG.ma
 
 const _buildWatchUrl = res => `${_buildOpenShiftUrl(window.OPENSHIFT_CONFIG.wssMasterUri, res)}?watch=true`;
 
-export { finishOAuth, currentUser, get, create, list, watch, OpenShiftWatchEvents };
+export { finishOAuth, currentUser, get, create, list, watch, remove, OpenShiftWatchEvents };
