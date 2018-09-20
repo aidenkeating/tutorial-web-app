@@ -19,9 +19,21 @@ class DefaultServiceInstanceTransform {
   }
 }
 
+class AMQServiceInstanceTransform {
+  isTransformable(siInfo) {
+    return siInfo.name === DEFAULT_SERVICES.AMQ
+  }
+
+  transform(siInfo) {
+    const defaultTransform = new DefaultServiceInstanceTransform().transform(siInfo);
+    defaultTransform.spec.clusterServicePlanExternalName = 'default';
+    return defaultTransform;
+  }
+}
+
 class EnMasseServiceInstanceTransform {
   isTransformable(siInfo) {
-    return siInfo.name === 'enmasse-standard';
+    return siInfo.name === DEFAULT_SERVICES.ENMASSE;
   }
 
   transform(siInfo) {
@@ -34,7 +46,14 @@ class EnMasseServiceInstanceTransform {
   }
 }
 
-const DEFAULT_TRANSFORMS = [new EnMasseServiceInstanceTransform(), new DefaultServiceInstanceTransform()];
+const DEFAULT_SERVICES = {
+  ENMASSE: 'enmasse-standard',
+  AMQ: 'amq-broker-71-persistence',
+  FUSE: 'fuse',
+  CHE: 'che',
+  LAUNCHER: 'launcher'
+}
+const DEFAULT_TRANSFORMS = [new EnMasseServiceInstanceTransform(), new AMQServiceInstanceTransform(), new DefaultServiceInstanceTransform()];
 
 const buildServiceInstanceResourceObj = (siInfo, transforms = DEFAULT_TRANSFORMS) => {
   const transform = transforms.find(t => t.isTransformable(siInfo));
@@ -44,4 +63,4 @@ const buildServiceInstanceResourceObj = (siInfo, transforms = DEFAULT_TRANSFORMS
   return transform.transform(siInfo);
 };
 
-export { buildServiceInstanceResourceObj, DefaultServiceInstanceTransform, EnMasseServiceInstanceTransform };
+export { buildServiceInstanceResourceObj, DefaultServiceInstanceTransform, EnMasseServiceInstanceTransform, DEFAULT_SERVICES };

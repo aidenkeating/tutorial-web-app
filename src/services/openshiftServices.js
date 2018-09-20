@@ -27,8 +27,8 @@ const OpenShiftWatchEvents = Object.freeze({
 });
 
 class OpenShiftWatchEventListener {
-  _handler = () => {};
-  _errorHandler = () => {};
+  _handler = () => { };
+  _errorHandler = () => { };
 
   constructor(socket) {
     this._socket = socket;
@@ -174,7 +174,7 @@ const get = (res, name) =>
     axios({
       url: `${window.OPENSHIFT_CONFIG.masterUri}/apis/${res.group}/${res.version}/namespaces/${res.namespace}/${
         res.name
-      }/${name}`,
+        }/${name}`,
       headers: {
         authorization: `Bearer ${user.access_token}`
       }
@@ -196,7 +196,7 @@ const create = (res, obj) =>
     const requestUrl = _buildRequestUrl(res);
 
     if (!obj.apiVersion) {
-      obj.apiVersion = `${res.group}/${res.version}`;
+      obj.apiVersion = res.group ? `${res.group}/${res.version}` : res.version;
     }
 
     return axios({
@@ -218,8 +218,9 @@ const watch = res =>
     return Promise.resolve(new OpenShiftWatchEventListener(socket).init());
   });
 
+const _buildOpenshiftApiUrl = (baseUrl, res) => res.group ? `${baseUrl}/apis/${res.group}` : `${baseUrl}/api`;
 const _buildOpenShiftUrl = (baseUrl, res) => {
-  const urlBegin = `${baseUrl}/apis/${res.group}/${res.version}`;
+  const urlBegin = `${_buildOpenshiftApiUrl(baseUrl, res)}/${res.version}`;
   if (res.namespace) {
     return `${urlBegin}/namespaces/${res.namespace}/${res.name}`;
   }
