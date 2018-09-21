@@ -1,4 +1,4 @@
-import { list, create, remove, watch, currentUser, OpenShiftWatchEvents } from './openshiftServices';
+import { list, create, remove, watch, update, currentUser, OpenShiftWatchEvents } from './openshiftServices';
 import { walkthroughTypes } from '../redux/constants';
 import { FULFILLED_ACTION } from '../redux/helpers';
 import { buildServiceInstanceResourceObj, DEFAULT_SERVICES } from './serviceInstanceServices';
@@ -37,13 +37,6 @@ const manageUserWalkthrough = dispatch => {
         name: userNamespace
       }
     };
-
-    const serviceInstanceDef = {
-      name: 'serviceinstances',
-      namespace: userNamespace,
-      version: 'v1beta1',
-      group: 'servicecatalog.k8s.io'
-    };
     const statefulSetDef = {
       name: 'statefulsets',
       group: 'apps',
@@ -65,7 +58,7 @@ const manageUserWalkthrough = dispatch => {
         return Promise.all(
           siObjs.map(siObj =>
             findOrCreateOpenshiftResource(
-              serviceInstanceDef,
+              buildServiceInstanceDef(userNamespace),
               siObj,
               resObj => resObj.spec.clusterServiceClassExternalName === siObj.spec.clusterServiceClassExternalName
             )
@@ -73,16 +66,30 @@ const manageUserWalkthrough = dispatch => {
         );
       })
       .then(() => {
-        watch(serviceInstanceDef).then(watchListener =>
+        watch(buildServiceInstanceDef(userNamespace)).then(watchListener =>
           watchListener.onEvent(handleServiceInstanceWatchEvents.bind(null, dispatch))
         );
-        watch(statefulSetDef).then(watchListener => watchListener.onEvent(handleAMQStatefulSet.bind(null, userNamespace)));
+        watch(statefulSetDef).then(watchListener => watchListener.onEvent(handleAMQStatefulSetWatchEvents.bind(null, userNamespace)));
       });
   });
 };
 
-const handleAMQStatefulSet = (namespace, event) => {
-  if (event.type === OpenShiftWatchEvents.OPENED || event.type === OpenShiftWatchEvents.CLOSED) {
+const buildRouteDef = namespace => ({
+  name: 'routes',
+  group: 'route.openshift.io',
+  version: 'v1',
+  namespace: namespace
+})
+
+const buildServiceInstanceDef = namespace => ({
+  name: 'serviceinstances',
+  namespace: namespace,
+  version: 'v1beta1',
+  group: 'servicecatalog.k8s.io'
+})
+
+const handleAMQStatefulSetWatchEvents = (namespace, event) => {
+  if (event.type === OpenShiftWatchEvents.OPENED || event.type === OpenShiftWatchEvents.CLOSED || event.type === OpenShiftWatchEvents.DELETED) {
     return;
   }
   const sSet = event.payload;
@@ -115,6 +122,9 @@ const handleAMQStatefulSet = (namespace, event) => {
     }
   }
   replaceOpenShiftResource(secretDef, secretRes, secret => {
+    if (!secret || !secret.data) {
+      return false;
+    }
     return secret.data.username !== window.btoa(usernameEnv.value) || secret.data.password !== window.btoa(passwordEnv.value);
   });
 }
@@ -132,6 +142,27 @@ const handleServiceInstanceWatchEvents = (dispatch, event) => {
       type: FULFILLED_ACTION(walkthroughTypes.CREATE_WALKTHROUGH),
       payload: event.payload
     });
+
+    const dashboardUrl = 'integreatly/dashboard-url';
+    if (event.payload.metadata.annotations && event.payload.metadata.annotations[dashboardUrl]) {
+      return;
+    }
+    const routeResource = {
+      metadata: {
+        name: 'console'
+      }
+    }
+    findOpenshiftResource(buildRouteDef(event.payload.metadata.namespace), routeResource)
+      .then(route => {
+        if (!route) {
+          return;
+        }
+        if (!event.payload.metadata.annotations) {
+          event.payload.metadata.annotations = {};
+        }
+        event.payload.metadata.annotations[dashboardUrl] = `http://${route.spec.host}`;
+        update(buildServiceInstanceDef(event.payload.metadata.namespace), event.payload);
+      });
   }
   if (event.type === OpenShiftWatchEvents.DELETED) {
     dispatch({
