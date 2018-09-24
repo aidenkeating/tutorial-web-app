@@ -1,7 +1,7 @@
 import { list, create, watch, update, currentUser, OpenShiftWatchEvents } from './openshiftServices';
 import { walkthroughTypes } from '../redux/constants';
 import { FULFILLED_ACTION } from '../redux/helpers';
-import { buildServiceInstanceResourceObj, DEFAULT_SERVICES } from './serviceInstanceServices';
+import { buildServiceInstanceResourceObj, DEFAULT_SERVICES } from '../common/serviceInstanceHelpers';
 
 const WALKTHROUGH_SERVICES = Object.values(DEFAULT_SERVICES);
 
