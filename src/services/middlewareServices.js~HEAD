@@ -1,5 +1,5 @@
 import { list, create, watch, update, currentUser, OpenShiftWatchEvents } from './openshiftServices';
-import { walkthroughTypes } from '../redux/constants';
+import { middlewareTypes } from '../redux/constants';
 import { FULFILLED_ACTION } from '../redux/helpers';
 import { buildServiceInstanceResourceObj, DEFAULT_SERVICES } from '../common/serviceInstanceHelpers';
 
@@ -10,13 +10,13 @@ const WALKTHROUGH_SERVICES = Object.values(DEFAULT_SERVICES);
  * @param {Object} dispatch Redux dispatch.
  * @param {Object} mockData The mock data to dispatch.
  */
-const mockUserWalkthrough = (dispatch, mockData) => {
+const mockMiddlewareServices = (dispatch, mockData) => {
   if (!mockData || !mockData.serviceInstances) {
     return;
   }
   mockData.serviceInstances.forEach(si =>
     dispatch({
-      type: FULFILLED_ACTION(walkthroughTypes.CREATE_WALKTHROUGH),
+      type: FULFILLED_ACTION(middlewareTypes.CREATE_WALKTHROUGH),
       payload: si
     })
   );
@@ -40,7 +40,7 @@ const mockUserWalkthrough = (dispatch, mockData) => {
  *   a Secret containing the credentials of AMQ.
  * @param {Object} dispatch Redux dispatch.
  */
-const manageUserWalkthrough = dispatch => {
+const manageMiddlewareServices = dispatch => {
   currentUser().then(user => {
     const userNamespace = buildValidProjectNamespaceName(user.username);
 
@@ -93,7 +93,7 @@ const manageUserWalkthrough = dispatch => {
           watchListener.onEvent(handleServiceInstanceWatchEvents.bind(null, dispatch))
         );
         watch(statefulSetDef).then(watchListener =>
-          watchListener.onEvent(handleAMQStatefulSetWatchEvents.bind(null, userNamespace))
+          watchListener.onEvent(handleAMQStatefulSetWatchEvents.bind(null, dispatch, userNamespace))
         );
       });
   });
@@ -126,7 +126,7 @@ const buildServiceInstanceDef = namespace => ({
  * @param {string} namespace The namespace to perform actions on, based on events.
  * @param {Object} event The event to handle.
  */
-const handleAMQStatefulSetWatchEvents = (namespace, event) => {
+const handleAMQStatefulSetWatchEvents = (dispatch, namespace, event) => {
   if (
     event.type === OpenShiftWatchEvents.OPENED ||
     event.type === OpenShiftWatchEvents.CLOSED ||
@@ -155,27 +155,9 @@ const handleAMQStatefulSetWatchEvents = (namespace, event) => {
     return;
   }
 
-  const secretDef = {
-    name: 'secrets',
-    version: 'v1',
-    namespace
-  };
-  const secretRes = {
-    metadata: {
-      name: 'amq-broker-credentials'
-    },
-    stringData: {
-      username: usernameEnv.value,
-      password: passwordEnv.value
-    }
-  };
-  replaceOpenShiftResource(secretDef, secretRes, secret => {
-    if (!secret || !secret.data) {
-      return false;
-    }
-    return (
-      secret.data.username !== window.btoa(usernameEnv.value) || secret.data.password !== window.btoa(passwordEnv.value)
-    );
+  dispatch({
+    type: FULFILLED_ACTION(middlewareTypes.GET_AMQ_CREDENTIALS),
+    payload: { username: usernameEnv.value, password: passwordEnv.value }
   });
 };
 
@@ -194,7 +176,7 @@ const handleServiceInstanceWatchEvents = (dispatch, event) => {
   }
   if (event.type === OpenShiftWatchEvents.ADDED || event.type === OpenShiftWatchEvents.MODIFIED) {
     dispatch({
-      type: FULFILLED_ACTION(walkthroughTypes.CREATE_WALKTHROUGH),
+      type: FULFILLED_ACTION(middlewareTypes.CREATE_WALKTHROUGH),
       payload: event.payload
     });
 
@@ -211,7 +193,7 @@ const handleServiceInstanceWatchEvents = (dispatch, event) => {
   }
   if (event.type === OpenShiftWatchEvents.DELETED) {
     dispatch({
-      type: FULFILLED_ACTION(walkthroughTypes.REMOVE_WALKTHROUGH),
+      type: FULFILLED_ACTION(middlewareTypes.REMOVE_WALKTHROUGH),
       payload: event.payload
     });
   }
@@ -274,24 +256,6 @@ const findOrCreateOpenshiftResource = (openshiftResourceDef, resToFind, compareF
   });
 
 /**
- * Helper function for creating or updating an OpenShift Resource.
- * @param {Object} resourceDef The definition of the OpenShift Resource.
- * @param {Object} resource The OpenShift Resource itself. By default this needs only to contain a name.
- * @param {Function} replaceIfFn A custom function for comparing resources, determines if a resource is found.
- */
-const replaceOpenShiftResource = (
-  resourceDef,
-  resource,
-  replaceIfFn = resObj => resObj.metadata.name === resource.metadata.name
-) =>
-  findOrCreateOpenshiftResource(resourceDef, resource).then(res => {
-    if (replaceIfFn(res)) {
-      return update(res, res);
-    }
-    return Promise.resolve(res);
-  });
-
-/**
  * Construct a projects namespace from a given username.
  * Note that the namespace name might contain the full username as it is sanitized first.
  * @param {string} username The username to create the namespace name from.
@@ -304,4 +268,4 @@ const buildValidProjectNamespaceName = username => `${cleanUsername(username)}-w
  */
 const cleanUsername = username => username.replace(/@/g, '-').replace(/\./g, '-');
 
-export { manageUserWalkthrough, mockUserWalkthrough };
+export { manageMiddlewareServices, mockMiddlewareServices };

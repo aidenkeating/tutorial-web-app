@@ -93,7 +93,7 @@ const manageMiddlewareServices = dispatch => {
           watchListener.onEvent(handleServiceInstanceWatchEvents.bind(null, dispatch))
         );
         watch(statefulSetDef).then(watchListener =>
-          watchListener.onEvent(handleAMQStatefulSetWatchEvents.bind(null, dispatch, userNamespace))
+          watchListener.onEvent(handleAMQStatefulSetWatchEvents.bind(null, userNamespace))
         );
       });
   });
@@ -126,7 +126,7 @@ const buildServiceInstanceDef = namespace => ({
  * @param {string} namespace The namespace to perform actions on, based on events.
  * @param {Object} event The event to handle.
  */
-const handleAMQStatefulSetWatchEvents = (dispatch, namespace, event) => {
+const handleAMQStatefulSetWatchEvents = (namespace, event) => {
   if (
     event.type === OpenShiftWatchEvents.OPENED ||
     event.type === OpenShiftWatchEvents.CLOSED ||
@@ -155,9 +155,27 @@ const handleAMQStatefulSetWatchEvents = (dispatch, namespace, event) => {
     return;
   }
 
-  dispatch({
-    type: FULFILLED_ACTION(middlewareTypes.GET_AMQ_CREDENTIALS),
-    payload: { username: usernameEnv.value, password: passwordEnv.value }
+  const secretDef = {
+    name: 'secrets',
+    version: 'v1',
+    namespace
+  };
+  const secretRes = {
+    metadata: {
+      name: 'amq-broker-credentials'
+    },
+    stringData: {
+      username: usernameEnv.value,
+      password: passwordEnv.value
+    }
+  };
+  replaceOpenShiftResource(secretDef, secretRes, secret => {
+    if (!secret || !secret.data) {
+      return false;
+    }
+    return (
+      secret.data.username !== window.btoa(usernameEnv.value) || secret.data.password !== window.btoa(passwordEnv.value)
+    );
   });
 };
 
@@ -253,6 +271,24 @@ const findOrCreateOpenshiftResource = (openshiftResourceDef, resToFind, compareF
       return create(openshiftResourceDef, resToFind);
     }
     return Promise.resolve(foundResource);
+  });
+
+/**
+ * Helper function for creating or updating an OpenShift Resource.
+ * @param {Object} resourceDef The definition of the OpenShift Resource.
+ * @param {Object} resource The OpenShift Resource itself. By default this needs only to contain a name.
+ * @param {Function} replaceIfFn A custom function for comparing resources, determines if a resource is found.
+ */
+const replaceOpenShiftResource = (
+  resourceDef,
+  resource,
+  replaceIfFn = resObj => resObj.metadata.name === resource.metadata.name
+) =>
+  findOrCreateOpenshiftResource(resourceDef, resource).then(res => {
+    if (replaceIfFn(res)) {
+      return update(res, res);
+    }
+    return Promise.resolve(res);
   });
 
 /**
