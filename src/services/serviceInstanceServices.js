@@ -21,7 +21,7 @@ class DefaultServiceInstanceTransform {
 
 class AMQServiceInstanceTransform {
   isTransformable(siInfo) {
-    return siInfo.name === DEFAULT_SERVICES.AMQ
+    return siInfo.name === DEFAULT_SERVICES.AMQ;
   }
 
   transform(siInfo) {
@@ -52,9 +52,23 @@ const DEFAULT_SERVICES = {
   FUSE: 'fuse',
   CHE: 'che',
   LAUNCHER: 'launcher'
-}
-const DEFAULT_TRANSFORMS = [new EnMasseServiceInstanceTransform(), new AMQServiceInstanceTransform(), new DefaultServiceInstanceTransform()];
+};
+const DEFAULT_TRANSFORMS = [
+  new EnMasseServiceInstanceTransform(),
+  new AMQServiceInstanceTransform(),
+  new DefaultServiceInstanceTransform()
+];
 
+/**
+ * Construct a ServiceInstance OpenShift resource from a small amount of generic
+ * ServiceInstance information.
+ *
+ * The reasoning for separating this out is that many ServiceInstances require
+ * default parameters to be setup or a plan other than default to be set. This
+ * will handle those circumstances.
+ * @param {Object} siInfo Default siInfo.
+ * @param {Object[]} transforms An array of Classes used to transform the default siInfo.
+ */
 const buildServiceInstanceResourceObj = (siInfo, transforms = DEFAULT_TRANSFORMS) => {
   const transform = transforms.find(t => t.isTransformable(siInfo));
   if (!transform) {
@@ -63,4 +77,9 @@ const buildServiceInstanceResourceObj = (siInfo, transforms = DEFAULT_TRANSFORMS
   return transform.transform(siInfo);
 };
 
-export { buildServiceInstanceResourceObj, DefaultServiceInstanceTransform, EnMasseServiceInstanceTransform, DEFAULT_SERVICES };
+export {
+  buildServiceInstanceResourceObj,
+  DefaultServiceInstanceTransform,
+  EnMasseServiceInstanceTransform,
+  DEFAULT_SERVICES
+};
