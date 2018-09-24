@@ -1,9 +1,9 @@
-import { list, create, remove, watch, update, currentUser, OpenShiftWatchEvents } from './openshiftServices';
+import { list, create, watch, update, currentUser, OpenShiftWatchEvents } from './openshiftServices';
 import { walkthroughTypes } from '../redux/constants';
 import { FULFILLED_ACTION } from '../redux/helpers';
 import { buildServiceInstanceResourceObj, DEFAULT_SERVICES } from './serviceInstanceServices';
 
-const WALKTHROUGH_SERVICES = ['fuse', 'che', 'launcher', 'enmasse-standard', 'amq-broker-71-persistence'];
+const WALKTHROUGH_SERVICES = Object.values(DEFAULT_SERVICES);
 
 const mockUserWalkthrough = (dispatch, mockData) => {
   if (!mockData || !mockData.serviceInstances) {
@@ -143,6 +143,10 @@ const handleServiceInstanceWatchEvents = (dispatch, event) => {
       payload: event.payload
     });
 
+    // We know that the AMQ ServiceInstance will not have a dashboardURL associated with it.
+    // The reason for this is that the Template Service Broker doesn't allow for dashboardURLs.
+    // Because of this, for AMQ, we need to set an annotation on the ServiceInstance with
+    // the route specified there instead.
     const dashboardUrl = 'integreatly/dashboard-url';
     if (event.payload.metadata.annotations && event.payload.metadata.annotations[dashboardUrl]) {
       return;
@@ -191,7 +195,7 @@ const replaceOpenShiftResource = (resourceDef, resourceRes, replaceIfFn = (resOb
   findOrCreateOpenshiftResource(resourceDef, resourceRes)
     .then(resource => {
       if (replaceIfFn(resource)) {
-        return remove(resourceDef, resourceRes).then(() => create(resourceDef, resourceRes));
+        return update(resourceDef, resourceRes);
       }
       return Promise.resolve(resource);
     });
