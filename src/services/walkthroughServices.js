@@ -147,26 +147,9 @@ const handleServiceInstanceWatchEvents = (dispatch, event) => {
     // The reason for this is that the Template Service Broker doesn't allow for dashboardURLs.
     // Because of this, for AMQ, we need to set an annotation on the ServiceInstance with
     // the route specified there instead.
-    const dashboardUrl = 'integreatly/dashboard-url';
-    if (event.payload.metadata.annotations && event.payload.metadata.annotations[dashboardUrl]) {
-      return;
+    if (event.payload.kind === 'ServiceInstance' && event.payload.spec.clusterServiceClassExternalName === DEFAULT_SERVICES.AMQ) {
+      handleAMQServiceInstanceWatchEvents(event);
     }
-    const routeResource = {
-      metadata: {
-        name: 'console'
-      }
-    }
-    findOpenshiftResource(buildRouteDef(event.payload.metadata.namespace), routeResource)
-      .then(route => {
-        if (!route) {
-          return;
-        }
-        if (!event.payload.metadata.annotations) {
-          event.payload.metadata.annotations = {};
-        }
-        event.payload.metadata.annotations[dashboardUrl] = `http://${route.spec.host}`;
-        update(buildServiceInstanceDef(event.payload.metadata.namespace), event.payload);
-      });
   }
   if (event.type === OpenShiftWatchEvents.DELETED) {
     dispatch({
@@ -175,6 +158,29 @@ const handleServiceInstanceWatchEvents = (dispatch, event) => {
     });
   }
 };
+
+const handleAMQServiceInstanceWatchEvents = (event) => {
+  const dashboardUrl = 'integreatly/dashboard-url';
+  if (event.payload.metadata.annotations && event.payload.metadata.annotations[dashboardUrl]) {
+    return;
+  }
+  const routeResource = {
+    metadata: {
+      name: 'console'
+    }
+  }
+  findOpenshiftResource(buildRouteDef(event.payload.metadata.namespace), routeResource)
+    .then(route => {
+      if (!route) {
+        return;
+      }
+      if (!event.payload.metadata.annotations) {
+        event.payload.metadata.annotations = {};
+      }
+      event.payload.metadata.annotations[dashboardUrl] = `http://${route.spec.host}`;
+      update(buildServiceInstanceDef(event.payload.metadata.namespace), event.payload);
+    });
+}
 
 const findOpenshiftResource = (openshiftResourceDef, resToFind, compareFn = (resObj => resObj.metadata.name === resToFind.metadata.name)) =>
   list(openshiftResourceDef)
