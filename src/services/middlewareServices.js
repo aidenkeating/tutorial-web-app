@@ -93,7 +93,7 @@ const manageMiddlewareServices = dispatch => {
           watchListener.onEvent(handleServiceInstanceWatchEvents.bind(null, dispatch))
         );
         watch(statefulSetDef).then(watchListener =>
-          watchListener.onEvent(handleAMQStatefulSetWatchEvents.bind(null, userNamespace))
+          watchListener.onEvent(handleAMQStatefulSetWatchEvents.bind(null, dispatch, userNamespace))
         );
       });
   });
@@ -126,7 +126,7 @@ const buildServiceInstanceDef = namespace => ({
  * @param {string} namespace The namespace to perform actions on, based on events.
  * @param {Object} event The event to handle.
  */
-const handleAMQStatefulSetWatchEvents = (namespace, event) => {
+const handleAMQStatefulSetWatchEvents = (dispatch, namespace, event) => {
   if (
     event.type === OpenShiftWatchEvents.OPENED ||
     event.type === OpenShiftWatchEvents.CLOSED ||
@@ -155,27 +155,9 @@ const handleAMQStatefulSetWatchEvents = (namespace, event) => {
     return;
   }
 
-  const secretDef = {
-    name: 'secrets',
-    version: 'v1',
-    namespace
-  };
-  const secretRes = {
-    metadata: {
-      name: 'amq-broker-credentials'
-    },
-    stringData: {
-      username: usernameEnv.value,
-      password: passwordEnv.value
-    }
-  };
-  replaceOpenShiftResource(secretDef, secretRes, secret => {
-    if (!secret || !secret.data) {
-      return false;
-    }
-    return (
-      secret.data.username !== window.btoa(usernameEnv.value) || secret.data.password !== window.btoa(passwordEnv.value)
-    );
+  dispatch({
+    type: FULFILLED_ACTION(middlewareTypes.GET_AMQ_CREDENTIALS),
+    payload: { username: usernameEnv.value, password: passwordEnv.value }
   });
 };
 
