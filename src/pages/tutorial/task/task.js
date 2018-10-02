@@ -13,9 +13,9 @@ class TaskPage extends React.Component {
 
   componentDidMount() {
     this.loadThread();
-    const { provisionWalkthroughOne } = this.props;
+    const { prepWalkthroughOne } = this.props;
     if (this.props.match.params.id === '1') {
-      provisionWalkthroughOne(this.props.middlewareServices.amqCredentials);
+      prepWalkthroughOne(this.props.middlewareServices.amqCredentials);
     }
   }
 
@@ -287,7 +287,7 @@ TaskPage.propTypes = {
   }),
   getThread: PropTypes.func,
   middlewareServices: PropTypes.object,
-  provisionWalkthrough: PropTypes.func,
+  prepWalkthroughOne: PropTypes.func,
   setProgress: PropTypes.func,
   thread: PropTypes.object,
   user: PropTypes.object
@@ -308,7 +308,7 @@ TaskPage.defaultProps = {
     data: {},
     amqCredentials: {}
   },
-  provisionWalkthrough: noop,
+  prepWalkthroughOne: noop,
   setProgress: noop,
   thread: null,
   user: null
@@ -316,7 +316,7 @@ TaskPage.defaultProps = {
 
 const mapDispatchToProps = dispatch => ({
   getThread: (language, id) => dispatch(reduxActions.threadActions.getThread(language, id)),
-  provisionWalkthrough: amqCredentials => provisionWalkthroughOne(dispatch, amqCredentials),
+  prepWalkthroughOne: amqCredentials => provisionWalkthroughOne(dispatch, amqCredentials),
   setProgress: progress => dispatch(reduxActions.userActions.setProgress(progress))
 });
 
