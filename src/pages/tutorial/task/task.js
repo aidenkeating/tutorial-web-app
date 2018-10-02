@@ -7,6 +7,7 @@ import { connect, reduxActions } from '../../../redux';
 import Breadcrumb from '../../../components/breadcrumb/breadcrumb';
 import AsciiDocTemplate from '../../../components/asciiDocTemplate/asciiDocTemplate';
 import { provisionWalkthroughOne } from '../../../services/walkthroughProvisionServices';
+import { DEFAULT_SERVICES } from '../../../common/serviceInstanceHelpers';
 
 class TaskPage extends React.Component {
   state = { task: 0, verifications: {}, verificationsChecked: false };
@@ -60,6 +61,52 @@ class TaskPage extends React.Component {
     }
   }
 
+  areDocLinksReady = () => {
+    for (let attrKey of Object.keys(this.getDocsAttributes())) {
+      if (!this.getDocsAttributes()[attrKey]) {
+        console.log(attrKey, this.getDocsAttributes()[attrKey]);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Temporary fix for the Asciidoc renderer not being reactive.
+  getDocsAttributes = () => ({
+    "fuse-url": this.getUrlFromMiddlewareServices(this.props.middlewareServices, DEFAULT_SERVICES.FUSE),
+    enmasseUrl: this.getUrlFromMiddlewareServices(this.props.middlewareServices, DEFAULT_SERVICES.ENMASSE),
+    amqUrl: this.getUrlFromMiddlewareServices(this.props.middlewareServices, DEFAULT_SERVICES.AMQ),
+    launcherUrl: this.getUrlFromMiddlewareServices(this.props.middlewareServices, DEFAULT_SERVICES.LAUNCHER),
+    cheUrl: this.getUrlFromMiddlewareServices(this.props.middlewareServices, DEFAULT_SERVICES.CHE),
+    "spring-boot-url": this.getUrlFromWalkthroughServices(this.props.walkthroughServices, DEFAULT_SERVICES.CRUD_APP),
+    "node-js-url": this.getUrlFromWalkthroughServices(this.props.walkthroughServices, DEFAULT_SERVICES.MESSAGING_APP),
+    "messaging-url": this.getAMQCredential(this.props.middlewareServices, 'url'),
+    "messaging-username": this.getAMQCredential(this.props.middlewareServices, 'username'),
+    "messaging-password": this.getAMQCredential(this.props.middlewareServices, 'password')
+  })
+
+  getAMQCredential = (middlewareServices, name) => {
+    if (!middlewareServices || !middlewareServices.amqCredentials || !middlewareServices.amqCredentials[name]) {
+      return null;
+    }
+    return middlewareServices.amqCredentials[name];
+  }
+
+  getUrlFromMiddlewareServices = (middlewareServices, serviceName) => {
+    if (!middlewareServices || !middlewareServices.data || !middlewareServices.data[serviceName]) {
+      return null;
+    }
+    const service = middlewareServices.data[serviceName];
+    return service.status.dashboardURL || service.metadata.annotations['integreatly/dashboard-url'];
+  }
+
+  getUrlFromWalkthroughServices = (walkthroughServices, serviceName) => {
+    if (!walkthroughServices || !walkthroughServices.services || !walkthroughServices.services[serviceName]) {
+      return null;
+    }
+    return walkthroughServices.services[serviceName].spec.host;
+  }
+
   backToIntro = e => {
     e.preventDefault();
     const { history } = this.props;
@@ -90,7 +137,7 @@ class TaskPage extends React.Component {
   render() {
     const { t, thread } = this.props;
     const { task, verifications, verificationsChecked } = this.state;
-    if (thread.pending) {
+    if (thread.pending || !this.areDocLinksReady()) {
       // todo: loading state
       return null;
     }
@@ -123,7 +170,7 @@ class TaskPage extends React.Component {
                   <div className="integr8ly-module-column--steps">
                     {threadTask.steps.map((step, i) => (
                       <React.Fragment key={i}>
-                        <AsciiDocTemplate adoc={step.stepDoc} attributes={step.attributes || {}} />
+                        <AsciiDocTemplate adoc={step.stepDoc} attributes={Object.assign({}, step.attributes, this.getDocsAttributes())} />
                         {step.infoVerifications &&
                           step.infoVerifications.map((verification, j) => (
                             <Alert type="info" key={j}>
@@ -134,7 +181,7 @@ class TaskPage extends React.Component {
                                   this.handleVerificationChanged(e, verification);
                                 }}
                               >
-                                <AsciiDocTemplate adoc={verification} attributes={step.attributes || {}} />
+                                <AsciiDocTemplate adoc={verification} attributes={Object.assign({}, step.attributes, this.getDocsAttributes())} />
                               </Checkbox>
                             </Alert>
                           ))}
@@ -142,7 +189,7 @@ class TaskPage extends React.Component {
                           step.successVerifications.map((verification, k) => (
                             <Alert type="success" key={k}>
                               <strong>{t('task.verificationTitle')}</strong>
-                              <AsciiDocTemplate adoc={verification} attributes={step.attributes || {}} />
+                              <AsciiDocTemplate adoc={verification} attributes={Object.assign({}, step.attributes, this.getDocsAttributes())} />
                             </Alert>
                           ))}
                       </React.Fragment>
@@ -281,7 +328,8 @@ const mapDispatchToProps = dispatch => ({
 
 const mapStateToProps = state => ({
   ...state.threadReducers,
-  ...state.middlewareReducers
+  ...state.middlewareReducers,
+  ...state.walkthroughServiceReducers
 });
 
 const ConnectedTaskPage = withRouter(
