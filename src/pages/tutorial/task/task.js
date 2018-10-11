@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { withRouter } from 'react-router-dom';
 import { translate } from 'react-i18next';
-import { noop, Alert, Button, ButtonGroup, Radio, Grid, Icon } from 'patternfly-react';
+import { noop, Alert, Button, ButtonGroup, Grid, Icon, Radio } from 'patternfly-react';
 import { connect, reduxActions } from '../../../redux';
 import Breadcrumb from '../../../components/breadcrumb/breadcrumb';
 import LoadingScreen from '../../../components/loadingScreen/loadingScreen';
@@ -16,12 +16,15 @@ class TaskPage extends React.Component {
 
   componentDidMount() {
     this.loadThread();
-    const { prepareWalkthroughOne, prepareWalkthroughOneA } = this.props;
+    const { prepareWalkthroughOne, prepareWalkthroughOneA, prepareWalkthroughTwo } = this.props;
     if (this.props.match.params.id === WALKTHROUGH_IDS.ONE) {
       prepareWalkthroughOne(this.props.middlewareServices.amqCredentials);
     }
     if (this.props.match.params.id === WALKTHROUGH_IDS.ONE_A) {
       prepareWalkthroughOneA(this.props.middlewareServices.enmasseCredentials);
+    }
+    if (this.props.match.params.id === WALKTHROUGH_IDS.TWO) {
+      prepareWalkthroughTwo();
     }
   }
 
@@ -320,7 +323,7 @@ class TaskPage extends React.Component {
                                     }
                                   >
                                     <AsciiDocTemplate
-                                      adoc={step.infoVerificationsNo[0]}
+                                      adoc={step.infoVerificationsNo ? step.infoVerificationsNo[0] : null}
                                       attributes={Object.assign(
                                         {},
                                         thread.data.attributes,
@@ -338,7 +341,12 @@ class TaskPage extends React.Component {
                               <strong>{t('task.verificationTitle')}</strong>
                               <AsciiDocTemplate
                                 adoc={verification}
-                                attributes={Object.assign({}, threadTask.attributes, step.attributes, attrs)}
+                                attributes={Object.assign(
+                                  {},
+                                  thread.data.attributes,
+                                  step.attributes,
+                                  attrs
+                                )}
                               />
                             </Alert>
                           ))}
@@ -585,6 +593,7 @@ const mapDispatchToProps = dispatch => ({
   prepareWalkthroughOne: amqCredentials => prepareWalkthroughNamespace(dispatch, walkthroughs.one, amqCredentials),
   prepareWalkthroughOneA: enmasseCredentials =>
     prepareWalkthroughNamespace(dispatch, walkthroughs.oneA, enmasseCredentials),
+  prepareWalkthroughTwo: () => prepareWalkthroughNamespace(dispatch, walkthroughs.two, null),
   setProgress: progress => dispatch(reduxActions.userActions.setProgress(progress))
 });
 
