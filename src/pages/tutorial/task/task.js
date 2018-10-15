@@ -341,12 +341,7 @@ class TaskPage extends React.Component {
                               <strong>{t('task.verificationTitle')}</strong>
                               <AsciiDocTemplate
                                 adoc={verification}
-                                attributes={Object.assign(
-                                  {},
-                                  thread.data.attributes,
-                                  step.attributes,
-                                  attrs
-                                )}
+                                attributes={Object.assign({}, thread.data.attributes, step.attributes, attrs)}
                               />
                             </Alert>
                           ))}
@@ -557,6 +552,7 @@ TaskPage.propTypes = {
   walkthroughServices: PropTypes.object,
   prepareWalkthroughOne: PropTypes.func,
   prepareWalkthroughOneA: PropTypes.func,
+  prepareWalkthroughTwo: PropTypes.func,
   setProgress: PropTypes.func,
   thread: PropTypes.object,
   user: PropTypes.object
@@ -583,6 +579,7 @@ TaskPage.defaultProps = {
   },
   prepareWalkthroughOne: noop,
   prepareWalkthroughOneA: noop,
+  prepareWalkthroughTwo: noop,
   setProgress: noop,
   thread: null,
   user: null
