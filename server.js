@@ -95,6 +95,14 @@ app.get('/walkthroughs/:walkthroughId/files/*', (req, res) => {
   return res.sendFile(path.resolve(__dirname, `${walkthrough.basePath}`, file));
 });
 
+// Reload each walkthrough. This will clone any repo walkthroughs.
+app.post('/sync-walkthroughs', (req, res) => {
+  loadAllWalkthroughs(walkthroughLocations)
+    .then(() => {
+      res.json(walkthroughs);
+    });
+});
+
 /**
  * Load walkthroughs from the passed locations.
  * @param location (string) A string that can contains one or more walkthrough locations.
@@ -109,6 +117,7 @@ function loadAllWalkthroughs(location) {
     locations.push(location);
   }
 
+  walkthroughs.length = 0;
   return resolveWalkthroughLocations(locations)
     .then(l => Promise.all(l.map(lookupWalkthroughResources)))
     .then(l => l.reduce((a, b) => a.concat(b)), []) // flatten walkthrough arrays of all locations
