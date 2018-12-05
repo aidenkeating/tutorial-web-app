@@ -9,6 +9,7 @@ const { fetchOpenshiftUser } = require('./server_middleware');
 const giteaClient = require('./gitea_client');
 const gitClient = require('./git_client');
 const bodyParser = require('body-parser');
+const uuid = require('uuid');
 
 const app = express();
 app.use(bodyParser.json());
@@ -27,7 +28,6 @@ const CONTEXT_PREAMBLE = 'preamble';
 const CONTEXT_PARAGRAPH = 'paragraph';
 const LOCATION_SEPARATOR = ',';
 const TMP_DIR = process.env.TMP_DIR || '/tmp';
-const TMP_DIR_PREFIX = require('uuid').v4();
 
 const walkthroughs = [];
 
@@ -100,6 +100,9 @@ app.post('/sync-walkthroughs', (req, res) => {
   loadAllWalkthroughs(walkthroughLocations)
     .then(() => {
       res.json(walkthroughs);
+    }).catch(err => {
+      console.error(`An error occurred when syncing walkthroughs: ${err}`);
+      res.status(500);
     });
 });
 
@@ -146,6 +149,7 @@ function resolveWalkthroughLocations(locations) {
     return p && fs.existsSync(p);
   }
 
+  const tmpDirPrefix = uuid.v4();
   const mappedLocations = locations.map(location => {
     return new Promise((resolve, reject) => {
       if (!location) {
@@ -155,7 +159,7 @@ function resolveWalkthroughLocations(locations) {
         return resolve(location);
       } else if (isGitRepo(location)) {
         console.log(`Importing walkthrough from git ${location}`);
-        const clonePath = path.join(TMP_DIR, TMP_DIR_PREFIX);
+        const clonePath = path.join(TMP_DIR, tmpDirPrefix);
         return gitClient
           .cloneRepo(location, clonePath)
           .then(cloned => resolve(path.join(cloned, 'walkthroughs')))
