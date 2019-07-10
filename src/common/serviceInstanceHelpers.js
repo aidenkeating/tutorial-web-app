@@ -59,7 +59,8 @@ const DEFAULT_SERVICES = {
   THREESCALE: '3scale',
   APICURIO: 'apicurio',
   FUSE_MANAGED: 'fuse-managed',
-  RHSSO: 'rhsso'
+  RHSSO_CLUSTER: 'rhsso',
+  RHSSO: 'rhsso-user'
 };
 
 const DEFAULT_TRANSFORMS = [
